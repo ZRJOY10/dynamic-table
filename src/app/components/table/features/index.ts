@@ -9,3 +9,5 @@ export * from './column-resize.feature';
 export * from './column-reorder.feature';
 export * from './virtual-scroll.feature';
 export * from './column-utils.feature';
+export * from './column-visibility.feature';
+export * from './computed-columns.feature';

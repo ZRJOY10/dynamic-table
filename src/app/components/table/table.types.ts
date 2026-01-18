@@ -43,6 +43,8 @@ export interface ColumnConfig<T = any> {
   sortComparator?: (a: T, b: T, direction: SortDirection) => number;
   /** Custom cell formatter */
   formatter?: (value: any, row: T) => string;
+  /** Whether this is a computed column */
+  isComputed?: boolean;
 }
 
 export type SortDirection = 'asc' | 'desc' | null;

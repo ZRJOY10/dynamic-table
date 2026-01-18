@@ -100,6 +100,30 @@ import {
   getCellValue,
   defaultCompare,
   trackByColumn,
+  // Column Visibility
+  ColumnVisibilityState,
+  createColumnVisibilityState,
+  toggleDropdown,
+  closeDropdown,
+  toggleColumnVisibility,
+  isColumnVisible,
+  showAllColumns,
+  hideAllColumns,
+  // Computed Columns
+  ComputedColumnsState,
+  ComputedColumnDefinition,
+  ColumnCondition,
+  createComputedColumnsState,
+  openComputedColumnModal,
+  closeComputedColumnModal,
+  createEmptyComputedColumn,
+  createEmptyCondition,
+  addComputedColumn,
+  updateComputedColumn,
+  removeComputedColumn,
+  computeColumnValue,
+  computedColumnToColumnConfig,
+  CONDITION_OPERATORS,
 } from './features';
 
 @Component({
@@ -147,6 +171,8 @@ export class Table<T extends Record<string, any> = any> {
   private readonly resizeState: ColumnResizeState = createColumnResizeState();
   private readonly reorderState: ColumnReorderState = createColumnReorderState();
   private readonly virtualScrollState: VirtualScrollState = createVirtualScrollState();
+  private readonly columnVisibilityState: ColumnVisibilityState = createColumnVisibilityState();
+  private readonly computedColumnsState: ComputedColumnsState = createComputedColumnsState();
 
   // Expose state signals for template
   protected readonly sorts = this.sortingState.sorts;
@@ -157,6 +183,15 @@ export class Table<T extends Record<string, any> = any> {
   protected readonly draggedColumn = this.reorderState.draggedColumn;
   protected readonly dropTargetColumn = this.reorderState.dropTargetColumn;
   protected readonly resizingColumn = this.resizeState.resizingColumn;
+  protected readonly hiddenColumns = this.columnVisibilityState.hiddenColumns;
+  protected readonly columnVisibilityDropdownOpen = this.columnVisibilityState.dropdownOpen;
+  protected readonly computedColumns = this.computedColumnsState.computedColumns;
+  protected readonly computedColumnModalOpen = this.computedColumnsState.modalOpen;
+  protected readonly editingComputedColumn = this.computedColumnsState.editingColumn;
+
+  // Computed column form state
+  protected readonly currentComputedColumn = signal<ComputedColumnDefinition>(createEmptyComputedColumn());
+  protected readonly conditionOperators = CONDITION_OPERATORS;
 
   // ============================================================================
   // Computed Properties
@@ -166,10 +201,28 @@ export class Table<T extends Record<string, any> = any> {
     ...this.config(),
   }));
 
+  // All columns including computed ones
+  protected readonly allColumns = computed<ColumnConfig<T>[]>(() => {
+    const baseColumns = [...this.columns()];
+    const computedCols = this.computedColumns();
+    
+    // Add computed columns
+    const computedColumnConfigs = computedCols.map((cc, idx) => 
+      computedColumnToColumnConfig<T>(cc, baseColumns.length + idx)
+    );
+    
+    return [...baseColumns, ...computedColumnConfigs];
+  });
+
   protected readonly processedColumns = computed<ColumnConfig<T>[]>(() => {
-    let cols = processColumns(this.columns());
+    let cols = processColumns(this.allColumns());
     cols = applyCustomWidths(cols, this.resizeState);
     cols = applyColumnOrder(cols, this.reorderState);
+    
+    // Filter out hidden columns
+    const hidden = this.hiddenColumns();
+    cols = cols.filter(col => !hidden.has(col.key));
+    
     return getVisibleColumns(cols);
   });
 
@@ -432,9 +485,106 @@ export class Table<T extends Record<string, any> = any> {
   }
 
   // ============================================================================
+  // Column Visibility Methods
+  // ============================================================================
+  protected toggleColumnVisibilityDropdown(): void {
+    toggleDropdown(this.columnVisibilityState);
+  }
+
+  protected closeColumnVisibilityDropdown(): void {
+    closeDropdown(this.columnVisibilityState);
+  }
+
+  protected toggleColumnVisibility(columnKey: string): void {
+    toggleColumnVisibility(this.columnVisibilityState, columnKey);
+  }
+
+  protected isColumnVisible(columnKey: string): boolean {
+    return isColumnVisible(this.columnVisibilityState, columnKey);
+  }
+
+  protected showAllColumns(): void {
+    showAllColumns(this.columnVisibilityState);
+  }
+
+  protected hideAllColumns(): void {
+    hideAllColumns(this.columnVisibilityState, this.allColumns().map(c => c.key));
+  }
+
+  // ============================================================================
+  // Computed Column Methods
+  // ============================================================================
+  protected openAddColumnModal(): void {
+    this.currentComputedColumn.set(createEmptyComputedColumn());
+    openComputedColumnModal(this.computedColumnsState);
+  }
+
+  protected openEditColumnModal(column: ComputedColumnDefinition): void {
+    this.currentComputedColumn.set({ ...column, conditions: [...column.conditions] });
+    openComputedColumnModal(this.computedColumnsState, column);
+  }
+
+  protected closeColumnModal(): void {
+    closeComputedColumnModal(this.computedColumnsState);
+  }
+
+  protected addCondition(): void {
+    this.currentComputedColumn.update(col => ({
+      ...col,
+      conditions: [...col.conditions, createEmptyCondition()]
+    }));
+  }
+
+  protected removeCondition(conditionId: string): void {
+    this.currentComputedColumn.update(col => ({
+      ...col,
+      conditions: col.conditions.filter(c => c.id !== conditionId)
+    }));
+  }
+
+  protected updateCondition(conditionId: string, field: keyof ColumnCondition, value: string): void {
+    this.currentComputedColumn.update(col => ({
+      ...col,
+      conditions: col.conditions.map(c => 
+        c.id === conditionId ? { ...c, [field]: value } : c
+      )
+    }));
+  }
+
+  protected updateComputedColumnField(field: 'title' | 'defaultValue', value: string): void {
+    this.currentComputedColumn.update(col => ({
+      ...col,
+      [field]: value
+    }));
+  }
+
+  protected saveComputedColumn(): void {
+    const column = this.currentComputedColumn();
+    if (!column.title.trim()) return;
+
+    if (this.editingComputedColumn()) {
+      updateComputedColumn(this.computedColumnsState, column);
+    } else {
+      addComputedColumn(this.computedColumnsState, column);
+    }
+    this.closeColumnModal();
+  }
+
+  protected deleteComputedColumn(columnKey: string): void {
+    removeComputedColumn(this.computedColumnsState, columnKey);
+  }
+
+  // ============================================================================
   // Utility Methods (delegated to feature)
   // ============================================================================
   protected getCellValue(row: T, column: ColumnConfig<T>): any {
+    // Handle computed columns
+    if (column.isComputed) {
+      const computedCol = this.computedColumns().find(c => c.key === column.key);
+      if (computedCol) {
+        return computeColumnValue(row, computedCol);
+      }
+    }
     return getCellValue(row, column);
   }
 
