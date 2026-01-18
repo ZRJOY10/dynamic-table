@@ -1,0 +1,304 @@
+/* ============================================================================
+   Dynamic Table Styles
+   ============================================================================ */
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+/* Custom Scrollbar */
+.table-container::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.table-container::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 5px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 5px;
+  border: 2px solid #f1f5f9;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.table-container::-webkit-scrollbar-corner {
+  background: #f1f5f9;
+}
+
+/* Dark mode scrollbar */
+:host-context(.dark) .table-container::-webkit-scrollbar-track,
+.dark .table-container::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+:host-context(.dark) .table-container::-webkit-scrollbar-thumb,
+.dark .table-container::-webkit-scrollbar-thumb {
+  background: #475569;
+  border-color: #1e293b;
+}
+
+:host-context(.dark) .table-container::-webkit-scrollbar-thumb:hover,
+.dark .table-container::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+:host-context(.dark) .table-container::-webkit-scrollbar-corner,
+.dark .table-container::-webkit-scrollbar-corner {
+  background: #1e293b;
+}
+
+/* Striped rows */
+.table-striped tbody tr:nth-child(even) {
+  background-color: rgba(249, 250, 251, 0.5);
+}
+
+.dark .table-striped tbody tr:nth-child(even) {
+  background-color: rgba(31, 41, 55, 0.3);
+}
+
+/* Frozen column shadows */
+th[style*="left"]:not(:first-child)::after,
+td[style*="left"]:not(:first-child)::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: -8px;
+  width: 8px;
+  height: 100%;
+  background: linear-gradient(to right, rgba(0, 0, 0, 0.08), transparent);
+  pointer-events: none;
+}
+
+th[style*="right"]::before,
+td[style*="right"]::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -8px;
+  width: 8px;
+  height: 100%;
+  background: linear-gradient(to left, rgba(0, 0, 0, 0.08), transparent);
+  pointer-events: none;
+}
+
+/* Selection checkbox styling */
+input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-content: center;
+  background-color: white;
+  margin: 0;
+  font: inherit;
+  color: currentColor;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid #d1d5db;
+  border-radius: 0.25rem;
+  transform: translateY(-0.075em);
+}
+
+input[type="checkbox"]::before {
+  content: "";
+  width: 0.65rem;
+  height: 0.65rem;
+  transform: scale(0);
+  transition: 120ms transform ease-in-out;
+  box-shadow: inset 1rem 1rem #2563eb;
+  transform-origin: center;
+  clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+}
+
+input[type="checkbox"]:checked::before {
+  transform: scale(1);
+}
+
+input[type="checkbox"]:checked {
+  border-color: #2563eb;
+  background-color: #2563eb;
+}
+
+input[type="checkbox"]:checked::before {
+  box-shadow: inset 1rem 1rem white;
+}
+
+input[type="checkbox"]:indeterminate {
+  border-color: #2563eb;
+  background-color: #2563eb;
+}
+
+input[type="checkbox"]:indeterminate::before {
+  transform: scale(1);
+  clip-path: polygon(0 40%, 0 60%, 100% 60%, 100% 40%);
+  box-shadow: inset 1rem 1rem white;
+}
+
+input[type="checkbox"]:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.5);
+}
+
+/* Dark mode checkbox */
+.dark input[type="checkbox"] {
+  background-color: #374151;
+  border-color: #6b7280;
+}
+
+.dark input[type="checkbox"]:checked,
+.dark input[type="checkbox"]:indeterminate {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+/* Resize cursor */
+.cursor-col-resize {
+  cursor: col-resize !important;
+}
+
+/* Drag and drop styles */
+th[draggable="true"] {
+  cursor: grab;
+}
+
+th[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+/* Column drag ghost */
+th.dragging {
+  opacity: 0.5;
+}
+
+/* Drop target highlight */
+th.drop-target {
+  background-color: rgba(59, 130, 246, 0.1) !important;
+  border-left: 2px solid #3b82f6;
+}
+
+/* Filter input focus state */
+.filter-input:focus {
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.3);
+}
+
+/* Table loading overlay */
+.table-loading-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.dark .table-loading-overlay {
+  background: rgba(17, 24, 39, 0.8);
+}
+
+/* Loading spinner */
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Row hover effect */
+tbody tr {
+  transition: background-color 150ms ease;
+}
+
+/* Cell truncation */
+td {
+  max-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compact mode */
+.table-compact th,
+.table-compact td {
+  padding: 0.5rem 0.75rem;
+}
+
+/* Bordered mode */
+.table-bordered th,
+.table-bordered td {
+  border: 1px solid #e5e7eb;
+}
+
+.dark .table-bordered th,
+.dark .table-bordered td {
+  border-color: #374151;
+}
+
+/* Pagination button focus */
+.pagination-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+/* Sort indicator animation */
+.sort-indicator {
+  transition: transform 200ms ease;
+}
+
+/* Multi-sort badge */
+.sort-badge {
+  animation: pop-in 200ms ease;
+}
+
+@keyframes pop-in {
+  0% {
+    transform: scale(0);
+  }
+  70% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Empty state */
+.empty-state {
+  opacity: 0;
+  animation: fade-in 300ms ease forwards;
+}
+
+@keyframes fade-in {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Virtual scroll transition */
+.virtual-scroll-container {
+  will-change: transform;
+}
+
+/* Header gradient enhancement */
+thead th {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+/* Filter row separator */
+thead tr:last-child th {
+  border-bottom-width: 2px;
+}

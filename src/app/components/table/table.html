@@ -1,0 +1,387 @@
+<!-- Dynamic Table Component -->
+<div
+  class="table-wrapper flex flex-col bg-white dark:bg-gray-900 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+  [class.select-none]="resizingColumn()"
+>
+  <!-- Table Header Actions -->
+  @if (filters().length > 0) {
+    <div class="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-700">
+      <span class="text-sm text-gray-600 dark:text-gray-400">
+        {{ filters().length }} filter(s) active
+      </span>
+      <button
+        (click)="clearAllFilters()"
+        class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 underline"
+      >
+        Clear all
+      </button>
+    </div>
+  }
+
+  <!-- Table Container -->
+  <div
+    #tableContainer
+    class="table-container overflow-auto relative"
+    [style.height]="mergedConfig().enableVirtualScroll ? mergedConfig().tableHeight + 'px' : 'auto'"
+    [style.maxHeight]="!mergedConfig().enableVirtualScroll ? mergedConfig().tableHeight + 'px' : 'none'"
+    (scroll)="onScroll($event)"
+  >
+    <!-- Virtual Scroll Spacer -->
+    @if (mergedConfig().enableVirtualScroll) {
+      <div [style.height]="virtualScrollData().totalHeight + 'px'" class="absolute top-0 left-0 w-px"></div>
+    }
+
+    <table
+      class="w-full border-collapse table-fixed"
+      [class.table-striped]="mergedConfig().stripedRows"
+    >
+      <!-- Table Head -->
+      <thead class="sticky top-0 z-20">
+        <tr class="bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-850">
+          <!-- Selection Checkbox Column -->
+          @if (mergedConfig().enableRowSelection && mergedConfig().showSelectionCheckbox) {
+            <th
+              class="sticky left-0 z-30 w-12 px-3 py-3 text-center bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-850 border-b border-r border-gray-200 dark:border-gray-700"
+            >
+              @if (mergedConfig().selectionMode === 'multiple') {
+                <div class="flex items-center justify-center">
+                  <input
+                    type="checkbox"
+                    [checked]="allSelected()"
+                    [indeterminate]="someSelected()"
+                    (change)="toggleAllSelection()"
+                    class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                  />
+                </div>
+              }
+            </th>
+          }
+
+          <!-- Frozen Left Columns -->
+          @for (column of frozenLeftColumns(); track trackByColumn($index, column)) {
+            <th
+              class="sticky z-20 px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-850 border-b border-r border-gray-200 dark:border-gray-700 select-none"
+              [style]="getColumnStyle(column)"
+              [style.left]="getFrozenLeftOffset(column)"
+              [class.cursor-pointer]="column.sortable"
+              [class.cursor-grabbing]="draggedColumn() === column.key"
+              [class.bg-blue-100]="dropTargetColumn() === column.key"
+              [draggable]="mergedConfig().enableColumnReorder && !column.frozen"
+              (click)="onHeaderClick(column, $event)"
+              (dragstart)="onDragStart(column, $event)"
+              (dragover)="onDragOver(column, $event)"
+              (dragleave)="onDragLeave()"
+              (drop)="onDrop(column, $event)"
+              (dragend)="onDragEnd()"
+            >
+              <ng-container *ngTemplateOutlet="headerContent; context: { column }"></ng-container>
+            </th>
+          }
+
+          <!-- Scrollable Columns -->
+          @for (column of scrollableColumns(); track trackByColumn($index, column)) {
+            <th
+              class="px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-850 border-b border-r border-gray-200 dark:border-gray-700 select-none relative group"
+              [style]="getColumnStyle(column)"
+              [class.cursor-pointer]="column.sortable"
+              [class.cursor-grab]="mergedConfig().enableColumnReorder && !draggedColumn()"
+              [class.cursor-grabbing]="draggedColumn() === column.key"
+              [class.bg-blue-100]="dropTargetColumn() === column.key"
+              [class.dark:bg-blue-900]="dropTargetColumn() === column.key"
+              [draggable]="mergedConfig().enableColumnReorder"
+              (click)="onHeaderClick(column, $event)"
+              (dragstart)="onDragStart(column, $event)"
+              (dragover)="onDragOver(column, $event)"
+              (dragleave)="onDragLeave()"
+              (drop)="onDrop(column, $event)"
+              (dragend)="onDragEnd()"
+            >
+              <ng-container *ngTemplateOutlet="headerContent; context: { column }"></ng-container>
+
+              <!-- Resize Handle -->
+              @if (column.resizable && mergedConfig().enableColumnResize) {
+                <div
+                  class="absolute top-0 right-0 w-1 h-full cursor-col-resize bg-transparent hover:bg-blue-400 group-hover:bg-gray-300 dark:group-hover:bg-gray-600 transition-colors"
+                  [class.bg-blue-500]="resizingColumn() === column.key"
+                  (mousedown)="onResizeStart(column, $event)"
+                ></div>
+              }
+            </th>
+          }
+
+          <!-- Frozen Right Columns -->
+          @for (column of frozenRightColumns(); track trackByColumn($index, column)) {
+            <th
+              class="sticky z-20 px-4 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider bg-gradient-to-b from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-850 border-b border-l border-gray-200 dark:border-gray-700 select-none"
+              [style]="getColumnStyle(column)"
+              [style.right]="getFrozenRightOffset(column)"
+              [class.cursor-pointer]="column.sortable"
+              (click)="onHeaderClick(column, $event)"
+            >
+              <ng-container *ngTemplateOutlet="headerContent; context: { column }"></ng-container>
+            </th>
+          }
+        </tr>
+
+        <!-- Filter Row -->
+        @if (mergedConfig().enableFiltering) {
+          <tr class="bg-gray-50 dark:bg-gray-800">
+            <!-- Selection Column Spacer -->
+            @if (mergedConfig().enableRowSelection && mergedConfig().showSelectionCheckbox) {
+              <th class="sticky left-0 z-30 w-12 px-3 py-2 bg-gray-50 dark:bg-gray-800 border-b border-r border-gray-200 dark:border-gray-700"></th>
+            }
+
+            <!-- Frozen Left Filter Inputs -->
+            @for (column of frozenLeftColumns(); track trackByColumn($index, column)) {
+              <th
+                class="sticky z-20 px-2 py-2 bg-gray-50 dark:bg-gray-800 border-b border-r border-gray-200 dark:border-gray-700"
+                [style.left]="getFrozenLeftOffset(column)"
+              >
+                <ng-container *ngTemplateOutlet="filterInput; context: { column }"></ng-container>
+              </th>
+            }
+
+            <!-- Scrollable Filter Inputs -->
+            @for (column of scrollableColumns(); track trackByColumn($index, column)) {
+              <th class="px-2 py-2 bg-gray-50 dark:bg-gray-800 border-b border-r border-gray-200 dark:border-gray-700">
+                <ng-container *ngTemplateOutlet="filterInput; context: { column }"></ng-container>
+              </th>
+            }
+
+            <!-- Frozen Right Filter Inputs -->
+            @for (column of frozenRightColumns(); track trackByColumn($index, column)) {
+              <th
+                class="sticky z-20 px-2 py-2 bg-gray-50 dark:bg-gray-800 border-b border-l border-gray-200 dark:border-gray-700"
+                [style.right]="getFrozenRightOffset(column)"
+              >
+                <ng-container *ngTemplateOutlet="filterInput; context: { column }"></ng-container>
+              </th>
+            }
+          </tr>
+        }
+      </thead>
+
+      <!-- Table Body -->
+      <tbody
+        #tableBody
+        class="divide-y divide-gray-200 dark:divide-gray-700"
+        [style.transform]="mergedConfig().enableVirtualScroll ? 'translateY(' + virtualScrollData().offsetY + 'px)' : 'none'"
+      >
+        @for (row of (mergedConfig().enableVirtualScroll ? virtualScrollData().visibleData : paginatedData()); track trackByKey($index, row)) {
+          <tr
+            class="transition-colors duration-150"
+            [class.bg-white]="!isRowSelected(row)"
+            [class.dark:bg-gray-900]="!isRowSelected(row)"
+            [class.bg-blue-50]="isRowSelected(row)"
+            [class.dark:bg-blue-900\/30]="isRowSelected(row)"
+            [class.hover:bg-gray-50]="mergedConfig().hoverHighlight && !isRowSelected(row)"
+            [class.dark:hover:bg-gray-800]="mergedConfig().hoverHighlight && !isRowSelected(row)"
+            [class.cursor-pointer]="mergedConfig().enableRowSelection"
+            (click)="toggleRowSelection(row, $event)"
+          >
+            <!-- Selection Checkbox -->
+            @if (mergedConfig().enableRowSelection && mergedConfig().showSelectionCheckbox) {
+              <td
+                class="sticky left-0 z-10 w-12 px-3 py-3 text-center border-r border-gray-200 dark:border-gray-700"
+                [class.bg-white]="!isRowSelected(row)"
+                [class.dark:bg-gray-900]="!isRowSelected(row)"
+                [class.bg-blue-50]="isRowSelected(row)"
+                [class.dark:bg-blue-900\/30]="isRowSelected(row)"
+                (click)="$event.stopPropagation()"
+              >
+                <input
+                  type="checkbox"
+                  [checked]="isRowSelected(row)"
+                  (change)="toggleRowSelection(row)"
+                  class="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 focus:ring-2 cursor-pointer"
+                />
+              </td>
+            }
+
+            <!-- Frozen Left Cells -->
+            @for (column of frozenLeftColumns(); track trackByColumn($index, column)) {
+              <td
+                class="sticky z-10 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 truncate"
+                [style]="getColumnStyle(column)"
+                [style.left]="getFrozenLeftOffset(column)"
+                [class.bg-white]="!isRowSelected(row)"
+                [class.dark:bg-gray-900]="!isRowSelected(row)"
+                [class.bg-blue-50]="isRowSelected(row)"
+                [class.dark:bg-blue-900\/30]="isRowSelected(row)"
+                [title]="getCellValue(row, column)"
+              >
+                {{ getCellValue(row, column) }}
+              </td>
+            }
+
+            <!-- Scrollable Cells -->
+            @for (column of scrollableColumns(); track trackByColumn($index, column)) {
+              <td
+                class="px-4 py-3 text-sm text-gray-700 dark:text-gray-300 border-r border-gray-200 dark:border-gray-700 truncate"
+                [style]="getColumnStyle(column)"
+                [title]="getCellValue(row, column)"
+              >
+                {{ getCellValue(row, column) }}
+              </td>
+            }
+
+            <!-- Frozen Right Cells -->
+            @for (column of frozenRightColumns(); track trackByColumn($index, column)) {
+              <td
+                class="sticky z-10 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 border-l border-gray-200 dark:border-gray-700 truncate"
+                [style]="getColumnStyle(column)"
+                [style.right]="getFrozenRightOffset(column)"
+                [class.bg-white]="!isRowSelected(row)"
+                [class.dark:bg-gray-900]="!isRowSelected(row)"
+                [class.bg-blue-50]="isRowSelected(row)"
+                [class.dark:bg-blue-900\/30]="isRowSelected(row)"
+                [title]="getCellValue(row, column)"
+              >
+                {{ getCellValue(row, column) }}
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr>
+            <td
+              [attr.colspan]="processedColumns().length + (mergedConfig().enableRowSelection && mergedConfig().showSelectionCheckbox ? 1 : 0)"
+              class="px-6 py-12 text-center text-gray-500 dark:text-gray-400"
+            >
+              <div class="flex flex-col items-center gap-2">
+                <svg class="w-12 h-12 text-gray-300 dark:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <span class="text-sm">{{ mergedConfig().emptyMessage }}</span>
+              </div>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Pagination Footer -->
+  @if (mergedConfig().enablePagination && totalItems() > 0) {
+    <div class="flex items-center justify-between px-4 py-3 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+      <!-- Page Size Selector -->
+      <div class="flex items-center gap-2">
+        <span class="text-sm text-gray-600 dark:text-gray-400">Rows per page:</span>
+        <select
+          [ngModel]="pageSize()"
+          (ngModelChange)="onPageSizeChange($event)"
+          class="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+        >
+          @for (size of mergedConfig().pageSizeOptions; track size) {
+            <option [value]="size">{{ size }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Page Info -->
+      <div class="text-sm text-gray-600 dark:text-gray-400">
+        Showing {{ (currentPage() - 1) * pageSize() + 1 }} to {{ Math.min(currentPage() * pageSize(), totalItems()) }} of {{ totalItems() }} entries
+      </div>
+
+      <!-- Pagination Controls -->
+      <div class="flex items-center gap-1">
+        <button
+          (click)="goToPreviousPage()"
+          [disabled]="currentPage() === 1"
+          class="p-2 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+          </svg>
+        </button>
+
+        @for (page of pageNumbers(); track page) {
+          @if (page === '...') {
+            <span class="px-2 py-1 text-gray-400">...</span>
+          } @else {
+            <button
+              (click)="goToPage(page)"
+              class="min-w-[36px] px-3 py-1 rounded-md text-sm font-medium transition-colors"
+              [class.bg-blue-600]="currentPage() === page"
+              [class.text-white]="currentPage() === page"
+              [class.text-gray-600]="currentPage() !== page"
+              [class.dark:text-gray-400]="currentPage() !== page"
+              [class.hover:bg-gray-200]="currentPage() !== page"
+              [class.dark:hover:bg-gray-700]="currentPage() !== page"
+            >
+              {{ page }}
+            </button>
+          }
+        }
+
+        <button
+          (click)="goToNextPage()"
+          [disabled]="currentPage() === totalPages()"
+          class="p-2 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+          </svg>
+        </button>
+      </div>
+    </div>
+  }
+</div>
+
+<!-- Header Content Template -->
+<ng-template #headerContent let-column="column">
+  <div class="flex items-center gap-2">
+    <!-- Column Title -->
+    <span class="truncate">{{ column.title }}</span>
+
+    <!-- Sort Indicator -->
+    @if (column.sortable) {
+      <div class="flex flex-col items-center ml-auto">
+        @if (getSortDirection(column.key) === 'asc') {
+          <svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clip-rule="evenodd"></path>
+          </svg>
+        } @else if (getSortDirection(column.key) === 'desc') {
+          <svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+          </svg>
+        } @else {
+          <svg class="w-4 h-4 text-gray-300 dark:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M5 12a1 1 0 102 0V6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L5 6.414V12zM15 8a1 1 0 10-2 0v5.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L15 13.586V8z"></path>
+          </svg>
+        }
+      </div>
+    }
+
+    <!-- Multi-sort Order Badge -->
+    @if (getSortOrder(column.key); as order) {
+      <span class="flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-blue-600 rounded-full">
+        {{ order }}
+      </span>
+    }
+  </div>
+</ng-template>
+
+<!-- Filter Input Template -->
+<ng-template #filterInput let-column="column">
+  @if (column.filterable) {
+    <div class="relative">
+      <input
+        type="text"
+        [placeholder]="'Filter ' + column.title"
+        [value]="getFilterValue(column.key)"
+        (input)="onFilterInput(column, $any($event.target).value)"
+        class="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+      />
+      @if (getFilterValue(column.key)) {
+        <button
+          (click)="clearFilter(column.key)"
+          class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      }
+    </div>
+  }
+</ng-template>
